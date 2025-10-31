@@ -4,7 +4,7 @@ import json
 import time
 import uuid
 from collections import defaultdict, deque
-from typing import Any, AsyncIterator, Deque, Dict, List, Set
+from typing import Any, Deque, Dict, List, Set
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -52,46 +52,32 @@ async def publish(msg: PublishPayload):
     return {"status": "ok", "event_id": evt["id"]}
 
 
-async def snapshot_topic_history(topic: str) -> List[Dict[str, Any]]:
-    async with history_lock:
-        return list(EVENT_HISTORY.get(topic, []))
-
-
-async def register_subscriber(topic: str, queue: asyncio.Queue[str]) -> None:
-    async with subscriber_lock:
-        SUBSCRIBERS[topic].add(queue)
-
-
-async def unregister_subscriber(topic: str, queue: asyncio.Queue[str]) -> None:
-    async with subscriber_lock:
-        topic_subscribers = SUBSCRIBERS.get(topic)
-        if topic_subscribers and queue in topic_subscribers:
-            topic_subscribers.remove(queue)
-            if not topic_subscribers:
-                SUBSCRIBERS.pop(topic, None)
-
-
-async def stream_topic_events(
-    topic: str, queue: asyncio.Queue[str]
-) -> AsyncIterator[Dict[str, str]]:
-    try:
-        history = await snapshot_topic_history(topic)
-        for event in history:
-            yield {"event": "message", "data": json.dumps(event)}
-
-        while True:
-            data = await queue.get()
-            yield {"event": "message", "data": data}
-    except asyncio.CancelledError:
-        raise
-    finally:
-        await unregister_subscriber(topic, queue)
-
-
 @app.get("/subscribe")
 async def subscribe(topic: str):
     queue: asyncio.Queue[str] = asyncio.Queue()
 
-    await register_subscriber(topic, queue)
+    async with subscriber_lock:
+        SUBSCRIBERS[topic].add(queue)
 
-    return EventSourceResponse(stream_topic_events(topic, queue))
+    async def event_generator():
+        try:
+            async with history_lock:
+                history = list(EVENT_HISTORY.get(topic, []))
+
+            for event in history:
+                yield {"event": "message", "data": json.dumps(event)}
+
+            while True:
+                data = await queue.get()
+                yield {"event": "message", "data": data}
+        except asyncio.CancelledError:
+            raise
+        finally:
+            async with subscriber_lock:
+                topic_subscribers = SUBSCRIBERS.get(topic)
+                if topic_subscribers and queue in topic_subscribers:
+                    topic_subscribers.remove(queue)
+                    if not topic_subscribers:
+                        SUBSCRIBERS.pop(topic, None)
+
+    return EventSourceResponse(event_generator())
