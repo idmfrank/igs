@@ -1,7 +1,14 @@
 
 # IG&S Phase 3 – Federated Agent Mesh (Day‑1 MVP)
 
-Minimal, platformless PoC: Python microservices + lightweight relay + Web dashboard + (stubbed) Azure Confidential Ledger writer.
+Minimal, platformless PoC that stitches together Python microservices, a lightweight relay,
+an HTML dashboard, and a stubbed Azure Confidential Ledger writer.
+
+Key characteristics:
+
+- Python microservices for the relay, policy, audit, and dashboard roles
+- Server‑Sent Events (SSE) fan‑out from the relay to the dashboard
+- In‑memory audit log placeholder until Azure Confidential Ledger is integrated
 
 
 ## Quick start
@@ -20,13 +27,18 @@ uvicorn apps.policy.main:app --reload --port 8002
 uvicorn apps.audit.main:app --reload --port 8003
 # Dashboard
 uvicorn apps.dashboard.main:app --reload --port 8004
+
+# 3) Publish a sample access intent (in a separate shell)
+python scripts/publish_intent.py
 ```
 
 Open: `http://localhost:8004` for the dashboard.
+You should see intents stream in as the relay fans them out, the policy agent evaluates
+them, and the audit agent records the decisions.
 
 ## Minimal API map
 
-- Relay: `POST /publish`  | `GET /subscribe` (Server‑Sent Events)
+- Relay: `POST /publish` | `GET /subscribe` (Server‑Sent Events)
 - Policy: `POST /evaluate`
 - Audit: `POST /audit`
 - Dashboard: `/` (stream), `/tx/{id}` (detail)
@@ -50,6 +62,7 @@ git push -u origin main
 ```
 
 ## Next steps
-- Wire the Audit Agent to Azure Confidential Ledger (replace stub).
-- Add mTLS between services and Key Vault‑issued JWTs.
+
+- Wire the Audit Agent to Azure Confidential Ledger (replace the in-memory stub).
+- Add mTLS between services and Key Vault-issued JWTs.
 - Expand policies in `policies/base.rego` and add tests.
