@@ -43,6 +43,18 @@ them, and the audit agent records the decisions.
 - Audit: `POST /audit`
 - Dashboard: `/` (stream), `/tx/{id}` (detail)
 
+### Relay publish & subscribe flow
+
+- `POST /publish` accepts a JSON body matching `PublishPayload` (`{"topic": str, "payload": dict}`) and records the event in a per-topic, in-memory ring buffer (50 most recent entries).
+- `GET /subscribe?topic=<name>` opens a Server-Sent Events stream that replays the stored history for the topic before forwarding new publishes in real time.
+- Subscriber lifecycles are tracked with coroutine-safe locks so that disconnects automatically remove their queues.
+
+Run the focused relay tests to confirm history replay and live fan-out behaviour:
+
+```bash
+pytest tests/relay/test_main.py
+```
+
 ## Create the GitHub repo (two options)
 
 **Option A – GitHub CLI (recommended):**
