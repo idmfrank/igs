@@ -1,0 +1,19 @@
+
+version: "3.9"
+services:
+  relay:
+    build: .
+    command: uvicorn apps.relay.main:app --host 0.0.0.0 --port 8001
+    ports: ["8001:8001"]
+  policy:
+    build: .
+    command: uvicorn apps.policy.main:app --host 0.0.0.0 --port 8002
+    ports: ["8002:8002"]
+  audit:
+    build: .
+    command: uvicorn apps.audit.main:app --host 0.0.0.0 --port 8003
+    ports: ["8003:8003"]
+  dashboard:
+    build: .
+    command: uvicorn apps.dashboard.main:app --host 0.0.0.0 --port 8004
+    ports: ["8004:8004"]
